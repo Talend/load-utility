@@ -17,6 +17,8 @@ import com.jcraft.jsch.ChannelShell;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TSLoadUtility {
 	private String host;
@@ -25,7 +27,7 @@ public class TSLoadUtility {
 	private String password;
 	private Session session;
 	private String command;
-	
+	private static final transient Logger LOG = LoggerFactory.getLogger(TSLoadUtility.class);
 	private static TSLoadUtility instance = null;
 	
 	public static synchronized TSLoadUtility getInstance(String host, int port, String username, String password)
@@ -136,6 +138,7 @@ Channel channel=session.openChannel("shell");
 		}
 
 		command.append(");\nexit;\nexit\n");
+		LOG.info("TSLU:: " + command.toString());
 		try {
 			Channel channel=session.openChannel("shell");
 
@@ -152,10 +155,12 @@ Channel channel=session.openChannel("shell");
 
 			Thread.sleep(10000);
 			String output = new String(baos.toByteArray()).replaceAll("\r", "");
+			LOG.info("TSLU:: " + output);
 				if (!output.contains("Statement executed successfully."))
 					throw new TSLoadUtilityException(output);
 			channel.disconnect();
 		} catch(JSchException | IOException | InterruptedException e) {
+			LOG.error("TSLU:: " + e.getMessage());
 			throw new TSLoadUtilityException(e.getMessage());
 		}
 	}
