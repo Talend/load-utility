@@ -110,7 +110,7 @@ Channel channel=session.openChannel("shell");
 	        		String[] segments = line.split("\\|");
 	        		columns.put(segments[0].trim(),segments[2].trim());
 	        	}
-	        	if (line.startsWith("--------|"))
+	        	if (line.startsWith("--------------------|"))
 	        	{
 	        		flag = true;
 	        	}
@@ -264,7 +264,52 @@ Channel channel=session.openChannel("shell");
 			throw new TSLoadUtilityException(e.getMessage());
 		} 
 	}
-	
+
+	public LinkedHashSet<String> retrieve(String database, String table) throws TSLoadUtilityException
+	{
+		LinkedHashSet<String> records = new LinkedHashSet<>();
+		try {
+			Channel channel=session.openChannel("shell");
+
+			PipedOutputStream pos = new PipedOutputStream();
+			PipedInputStream pis = new PipedInputStream(pos);
+			channel.setInputStream(pis);
+			pos.write(("tql\nuse "+database+";\nselect * from "+table+" limit 50;\nexit;\nexit\n").getBytes());
+			pos.flush();
+			pos.close();
+			InputStream in=channel.getInputStream();
+			final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			channel.setOutputStream(baos);
+			channel.connect();
+
+			Thread.sleep(10000);
+			String[] output = new String(baos.toByteArray()).replaceAll("\r", "").split("\n");
+			boolean flag = false;
+
+			for (String line : output)
+			{
+				if (flag && line.startsWith("("))
+				{
+					flag = false;
+				}
+				if (flag)
+				{
+					records.add(line);
+				}
+				if (line.startsWith("----"))
+				{
+					flag = true;
+				}
+
+			}
+
+			channel.disconnect();
+			return records;
+		} catch(JSchException | IOException | InterruptedException e) {
+			throw new TSLoadUtilityException(e.getMessage());
+		}
+	}
+
 	public void disconnect() {
         session.disconnect();
 	}
