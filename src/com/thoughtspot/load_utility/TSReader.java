@@ -31,7 +31,6 @@ public class TSReader {
 
     public synchronized boolean add(String record)
     {
-        System.out.println("ADD::" + record);
         return records.add(record);
     }
 
