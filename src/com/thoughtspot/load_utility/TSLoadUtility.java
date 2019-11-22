@@ -105,12 +105,12 @@ Channel channel=session.openChannel("shell");
 	        	{
 	        		flag = false;
 	        	}
-	        	if (flag)
+	        	if (flag && !line.startsWith("-"))
 	        	{
 	        		String[] segments = line.split("\\|");
 	        		columns.put(segments[0].trim(),segments[2].trim());
 	        	}
-	        	if (line.startsWith("--------------------|"))
+	        	if (line.contains("|"))
 	        	{
 	        		flag = true;
 	        	}
@@ -265,16 +265,17 @@ Channel channel=session.openChannel("shell");
 		} 
 	}
 
-	public LinkedHashSet<String> retrieve(String database, String table) throws TSLoadUtilityException
+	public void retrieve(String database, String table, TSReader reader)
 	{
-		LinkedHashSet<String> records = new LinkedHashSet<>();
+		//LinkedHashSet<String> records = new LinkedHashSet<>();
+		System.out.println("Starting Read");
 		try {
 			Channel channel=session.openChannel("shell");
 
 			PipedOutputStream pos = new PipedOutputStream();
 			PipedInputStream pis = new PipedInputStream(pos);
 			channel.setInputStream(pis);
-			pos.write(("tql\nuse "+database+";\nselect * from "+table+" limit 50;\nexit;\nexit\n").getBytes());
+			pos.write(("tql --query_results_apply_top_row_count 0 --null_string \"\"\nuse "+database+";\nselect * from "+table+";\nexit;\nexit\n").getBytes());
 			pos.flush();
 			pos.close();
 			InputStream in=channel.getInputStream();
@@ -294,7 +295,7 @@ Channel channel=session.openChannel("shell");
 				}
 				if (flag)
 				{
-					records.add(line);
+					reader.add(line);
 				}
 				if (line.startsWith("----"))
 				{
@@ -303,10 +304,12 @@ Channel channel=session.openChannel("shell");
 
 			}
 
+			reader.setIsCompleted(true);
+
 			channel.disconnect();
-			return records;
+			//return records;
 		} catch(JSchException | IOException | InterruptedException e) {
-			throw new TSLoadUtilityException(e.getMessage());
+			e.printStackTrace();
 		}
 	}
 
