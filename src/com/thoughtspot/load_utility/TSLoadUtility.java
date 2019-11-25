@@ -108,7 +108,11 @@ Channel channel=session.openChannel("shell");
 	        	if (flag && !line.startsWith("-"))
 	        	{
 	        		String[] segments = line.split("\\|");
-	        		columns.put(segments[0].trim(),segments[2].trim());
+	        		if (!segments[4].trim().equals(""))
+	        			// Checking if Date, DateTime, Time column types
+	        			columns.put(segments[0].trim(),segments[4].trim());
+	        		else
+						columns.put(segments[0].trim(),segments[2].trim());
 	        	}
 	        	if (line.contains("|"))
 	        	{
