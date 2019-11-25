@@ -108,7 +108,7 @@ Channel channel=session.openChannel("shell");
 	        	if (flag && !line.startsWith("-"))
 	        	{
 	        		String[] segments = line.split("\\|");
-	        		if (!segments[4].trim().equals(""))
+	        		if (segments.length == 5)
 	        			// Checking if Date, DateTime, Time column types
 	        			columns.put(segments[0].trim(),segments[4].trim());
 	        		else
