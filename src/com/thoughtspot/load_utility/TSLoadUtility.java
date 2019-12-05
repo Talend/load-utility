@@ -208,14 +208,14 @@ Channel channel=session.openChannel("shell");
 		}
 	}
 	
-	public void loadData(TSReader reader) throws TSLoadUtilityException {
+	public void loadData(TSReader reader, int commit) throws TSLoadUtilityException {
 		StringBuilder recs = new StringBuilder();
 		int counter = 1;
 		String threadName = reader.register(this.getClass().getSimpleName(),ThreadStatus.RUNNING);
 		while (!reader.getIsCompleted() || reader.size() > 0) {
 			recs.setLength(0);
 			System.out.println(threadName + " Outer Loop");
-			while (counter <= 1500 && reader.size() > 0)
+			while (counter <= commit && reader.size() > 0)
 			{
 				if (counter % 100 == 0)
 					System.out.println(threadName + " Inner Loop, Counter " + counter);
