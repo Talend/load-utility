@@ -28,14 +28,14 @@ public class TSLoadUtility {
 	private Session session;
 	private String command;
 	private static final transient Logger LOG = LoggerFactory.getLogger(TSLoadUtility.class);
-	private static TSLoadUtility instance = null;
+	//private static TSLoadUtility instance = null;
 	
 	public static synchronized TSLoadUtility getInstance(String host, int port, String username, String password)
 	{
-		if (instance == null)
-			instance = new TSLoadUtility(host, port, username, password);
+		//if (instance == null)
+			return new TSLoadUtility(host, port, username, password);
 		
-		return instance;
+		//return instance;
 	}
 	
 	private TSLoadUtility(String host, int port, String username, String password)
@@ -215,58 +215,96 @@ Channel channel=session.openChannel("shell");
 		}
 	}
 	
-	public void loadData(List<String> records) throws TSLoadUtilityException {
+	public void loadData(TSReader reader) throws TSLoadUtilityException {
 		StringBuilder recs = new StringBuilder();
-		for (String rec : records)
-		{
-			recs.append(rec+"\n");
-		}
-		String recsToLoad = recs.toString();
-		try {
-		Channel channel=session.openChannel("exec");
-    	ByteArrayOutputStream byteStream = new ByteArrayOutputStream(recsToLoad.length());
-    	GZIPOutputStream gos = new GZIPOutputStream(byteStream);
-        gos.write(recsToLoad.getBytes());
-        gos.flush();
-        gos.close();
-        byteStream.close();
-        ((ChannelExec)channel).setCommand(this.command);
-        
-        
-        ((ChannelExec)channel).setErrStream(System.err);
-        
-        PipedOutputStream pos = new PipedOutputStream();
-        PipedInputStream pis = new PipedInputStream(pos);
-        channel.setInputStream(pis);
-        pos.write(byteStream.toByteArray());
-        pos.flush();
-        pos.close();
-        InputStream in=channel.getInputStream();
-        
-        channel.setOutputStream(System.out);
-        channel.connect();
-        
-        
-        byte[] tmp=new byte[1024];
-        while(true){
-          while(in.available()>0){
-            int i=in.read(tmp, 0, 1024);
-            if(i<0)break;
-            System.out.print(new String(tmp, 0, i));
-          }
-          if(channel.isClosed()){
-            System.out.println("exit-status: "+channel.getExitStatus());
-            break;
-          }
-          
-          
-          try{Thread.sleep(1000);}catch(Exception ee){}
-        }
+		int counter = 1;
+		String threadName = reader.register(this.getClass().getSimpleName(),ThreadStatus.RUNNING);
+		while (!reader.getIsCompleted()) {
+			recs.setLength(0);
+			System.out.println(threadName + " Outer Loop");
+			while (counter <= 1500 && !reader.getIsCompleted())
+			{
+				if (counter % 100 == 0)
+					System.out.println(threadName + " Inner Loop, Counter " + counter);
+				if (reader.size() == 0) {
+					try {
+						Thread.sleep(100);
+					} catch (InterruptedException e) {
+						System.out.println(e.getMessage());
+					}
+				}
+				if (reader.size() > 0)
+				{
+					recs.append(reader.poll()+"\n");
+					counter++;
+				}
+			}
+			counter = 1;
+			/*
+			for (String rec : records) {
+				recs.append(rec + "\n");
+			}*/
+			String recsToLoad = recs.toString();
+			System.out.println(threadName + " Amount to load " + recsToLoad.length());
+			try {
+				Channel channel = session.openChannel("exec");
+				ByteArrayOutputStream byteStream = new ByteArrayOutputStream(recsToLoad.length());
+				GZIPOutputStream gos = new GZIPOutputStream(byteStream);
+				gos.write(recsToLoad.getBytes());
+				gos.flush();
+				gos.close();
+				byteStream.close();
+				((ChannelExec) channel).setCommand(this.command);
 
-        channel.disconnect();
-		} catch(JSchException | IOException  e) {
-			throw new TSLoadUtilityException(e.getMessage());
-		} 
+
+				((ChannelExec) channel).setErrStream(System.err);
+
+				PipedOutputStream pos = new PipedOutputStream();
+				PipedInputStream pis = new PipedInputStream(pos, 131072);
+				channel.setInputStream(pis);
+
+				pos.write(byteStream.toByteArray());
+				pos.flush();
+				pos.close();
+				InputStream in = channel.getInputStream();
+
+				//channel.setOutputStream(System.out);
+				channel.connect();
+
+				System.out.println(threadName + " Data sent to TS Server");
+
+				byte[] tmp = new byte[1024];
+				while (true) {
+					//System.out.println(threadName + "Checking Input");
+					while (in.available() > 0) {
+						int i = in.read(tmp, 0, 1024);
+						if (i < 0) {
+							break;
+						}
+						//System.out.print(threadName + " " + new String(tmp, 0, i));
+					}
+					//System.out.println(threadName + "Checking Channel");
+					if (channel.isClosed()) {
+						//System.out.println("exit-status: " + channel.getExitStatus());
+						break;
+					}
+
+
+					try {
+						System.out.println(threadName + " Sleep");
+						Thread.sleep(1000);
+						System.out.println(threadName + " Wake");
+					} catch (Exception ee) {
+						System.out.println(ee.getMessage());
+					}
+				}
+
+				channel.disconnect();
+			} catch (JSchException | IOException e) {
+				throw new TSLoadUtilityException(e.getMessage());
+			}
+		}
+		reader.update(threadName,ThreadStatus.DONE);
 	}
 
 	public void retrieve(String database, String table, TSReader reader)

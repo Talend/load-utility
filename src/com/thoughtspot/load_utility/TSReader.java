@@ -1,5 +1,6 @@
 package com.thoughtspot.load_utility;
 
+import java.util.Hashtable;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -7,7 +8,8 @@ public class TSReader {
     private boolean isCompleted = false;
     private ConcurrentLinkedQueue<String> records = new ConcurrentLinkedQueue<String>();
     private static TSReader instance = null;
-
+    private Hashtable<String, ThreadStatus> threadPool = new Hashtable<String, ThreadStatus>();
+    private int threadCount = 1;
     public static synchronized TSReader newInstance()
     {
         if (instance == null)
@@ -19,24 +21,64 @@ public class TSReader {
     private TSReader() {
     }
 
-    public synchronized void setIsCompleted(boolean isCompleted)
-    {
-        this.isCompleted = isCompleted;
+    public boolean done() {
+        boolean done = false;
+        synchronized (this) {
+            done = threadPool.size() == 0 ? true : false;
+        }
+        return done;
     }
 
-    public synchronized boolean getIsCompleted()
+    public void update(String name, ThreadStatus status)
     {
-        return this.isCompleted;
+        synchronized (this) {
+            if (status == ThreadStatus.DONE)
+                threadPool.remove(name);
+        }
     }
 
-    public synchronized boolean add(String record)
+    public String register(String name, ThreadStatus status)
     {
-        return records.add(record);
+        String threadName = null;
+        synchronized (this) {
+             threadName = name + threadCount++;
+            if (!threadPool.containsKey(threadName))
+                threadPool.put(threadName, status);
+        }
+        return threadName;
     }
 
-    public synchronized String poll()
+    public void setIsCompleted(boolean isCompleted)
     {
-        return records.poll();
+        synchronized (this) {
+            this.isCompleted = isCompleted;
+        }
     }
 
+    public boolean getIsCompleted()
+    {
+        synchronized (this) {
+            return this.isCompleted;
+        }
+    }
+
+    public boolean add(String record)
+    {
+        synchronized (this) {
+            return records.add(record);
+        }
+    }
+
+    public String poll()
+    {
+        synchronized (this) {
+            return records.poll();
+        }
+    }
+
+    public int size() {
+        synchronized (this) {
+            return records.size();
+        }
+    }
 }
