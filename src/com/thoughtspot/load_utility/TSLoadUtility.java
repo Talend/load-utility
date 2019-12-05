@@ -1,13 +1,6 @@
 package com.thoughtspot.load_utility;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
+import java.io.*;
 import java.util.*;
 import java.util.zip.GZIPOutputStream;
 
@@ -219,10 +212,10 @@ Channel channel=session.openChannel("shell");
 		StringBuilder recs = new StringBuilder();
 		int counter = 1;
 		String threadName = reader.register(this.getClass().getSimpleName(),ThreadStatus.RUNNING);
-		while (!reader.getIsCompleted()) {
+		while (!reader.getIsCompleted() || reader.size() > 0) {
 			recs.setLength(0);
 			System.out.println(threadName + " Outer Loop");
-			while (counter <= 1500 && !reader.getIsCompleted())
+			while (counter <= 1500 && reader.size() > 0)
 			{
 				if (counter % 100 == 0)
 					System.out.println(threadName + " Inner Loop, Counter " + counter);
@@ -245,66 +238,124 @@ Channel channel=session.openChannel("shell");
 				recs.append(rec + "\n");
 			}*/
 			String recsToLoad = recs.toString();
-			System.out.println(threadName + " Amount to load " + recsToLoad.length());
-			try {
-				Channel channel = session.openChannel("exec");
-				ByteArrayOutputStream byteStream = new ByteArrayOutputStream(recsToLoad.length());
-				GZIPOutputStream gos = new GZIPOutputStream(byteStream);
-				gos.write(recsToLoad.getBytes());
-				gos.flush();
-				gos.close();
-				byteStream.close();
-				((ChannelExec) channel).setCommand(this.command);
+			if (recsToLoad.length() > 0) {
+				System.out.println(threadName + " Amount to load " + recsToLoad.length());
+				Writer writer = null;
+				try {
+					writer = new BufferedWriter(new FileWriter("/Users/tbennett/thoughtspot/" + threadName + "_" + new Date().getTime() + ".csv"));
+					writer.write(recsToLoad);
+					writer.flush();
+					writer.close();
+				} catch (Exception e) {
+				}
+				try {
+					Channel channel = session.openChannel("exec");
+					ByteArrayOutputStream byteStream = new ByteArrayOutputStream(recsToLoad.length());
+					GZIPOutputStream gos = new GZIPOutputStream(byteStream);
+					gos.write(recsToLoad.getBytes());
+
+					gos.flush();
+					gos.close();
+					byteStream.close();
+					((ChannelExec) channel).setCommand(this.command);
 
 
-				((ChannelExec) channel).setErrStream(System.err);
+					((ChannelExec) channel).setErrStream(System.err);
 
-				PipedOutputStream pos = new PipedOutputStream();
-				PipedInputStream pis = new PipedInputStream(pos, 131072);
-				channel.setInputStream(pis);
+					PipedOutputStream pos = new PipedOutputStream();
+					PipedInputStream pis = new PipedInputStream(pos, 131072);
+					channel.setInputStream(pis);
 
-				pos.write(byteStream.toByteArray());
-				pos.flush();
-				pos.close();
-				InputStream in = channel.getInputStream();
+					pos.write(byteStream.toByteArray());
+					pos.flush();
+					pos.close();
+					InputStream in = channel.getInputStream();
 
-				//channel.setOutputStream(System.out);
-				channel.connect();
+					//channel.setOutputStream(System.out);
+					channel.connect();
 
-				System.out.println(threadName + " Data sent to TS Server");
+					System.out.println(threadName + " Data sent to TS Server");
 
-				byte[] tmp = new byte[1024];
-				while (true) {
-					//System.out.println(threadName + "Checking Input");
-					while (in.available() > 0) {
-						int i = in.read(tmp, 0, 1024);
-						if (i < 0) {
+					byte[] tmp = new byte[1024];
+					StringBuilder results = new StringBuilder();
+					while (true) {
+						//System.out.println(threadName + "Checking Input");
+						while (in.available() > 0) {
+							int i = in.read(tmp, 0, 1024);
+							if (i < 0) {
+								break;
+							}
+							results.append(new String(tmp, 0, i));
+							//System.out.print(threadName + " " + new String(tmp, 0, i));
+						}
+						//System.out.println(threadName + "Checking Channel");
+						if (channel.isClosed()) {
+							//System.out.println("exit-status: " + channel.getExitStatus());
 							break;
 						}
-						//System.out.print(threadName + " " + new String(tmp, 0, i));
-					}
-					//System.out.println(threadName + "Checking Channel");
-					if (channel.isClosed()) {
-						//System.out.println("exit-status: " + channel.getExitStatus());
-						break;
-					}
 
 
+						try {
+							//System.out.println(threadName + " Sleep");
+							Thread.sleep(1000);
+							//System.out.println(threadName + " Wake");
+						} catch (Exception ee) {
+							System.out.println(ee.getMessage());
+						}
+					}
+
+					System.out.println(threadName + " Data Sent to Server");
+
+					channel.disconnect();
+
+					String[] result_lines = results.toString().split("\n");
+					StringBuilder errors = new StringBuilder();
+					int rows_total = 0;
+					int rows_success = 0;
+					int rows_failed = 0;
+					int rows_dup_omitted = 0;
+					boolean isSuccess = false;
+					boolean summary = false;
+					boolean started = false;
 					try {
-						System.out.println(threadName + " Sleep");
-						Thread.sleep(1000);
-						System.out.println(threadName + " Wake");
-					} catch (Exception ee) {
-						System.out.println(ee.getMessage());
-					}
-				}
+						for (int x = 0; x < result_lines.length; x++) {
 
-				channel.disconnect();
-			} catch (JSchException | IOException e) {
-				throw new TSLoadUtilityException(e.getMessage());
+							if (result_lines[x].startsWith("Status")) {
+								isSuccess = result_lines[x].split(":")[1].trim().equalsIgnoreCase("Successful") ? true : false;
+							} else if (result_lines[x].startsWith("Rows total")) {
+								rows_total = Integer.parseInt(result_lines[x].split(":")[1].trim());
+							} else if (result_lines[x].startsWith("Rows successfully")) {
+								rows_success = Integer.parseInt(result_lines[x].split(":")[1].trim());
+							} else if (result_lines[x].startsWith("Rows failed")) {
+								rows_failed = Integer.parseInt(result_lines[x].split(":")[1].trim());
+							} else if (result_lines[x].startsWith("Rows duplicate")) {
+								rows_dup_omitted = Integer.parseInt(result_lines[x].split(":")[1].trim());
+							} else if (result_lines[x].startsWith("Source summary")) {
+								summary = true;
+							} else if (result_lines[x].startsWith("Started processing data row")) {
+								started = true;
+							} else if (started && !summary) {
+								errors.append(result_lines[x]);
+							}
+						}
+						if (!isSuccess)
+							throw new TSLoadUtilityException(errors.toString());
+						if (rows_total != rows_success)
+							throw new TSLoadUtilityException(rows_failed + " Failed Rows. " + rows_dup_omitted + " Rows Duplicated/Omitted. Message: " + errors.toString());
+					} catch (Exception e) {
+						System.out.println(e.getMessage());
+					}
+				} catch (JSchException | IOException e) {
+					throw new TSLoadUtilityException(e.getMessage());
+				}
+			} else {
+				try {
+					Thread.sleep(500);
+				} catch(InterruptedException e) {}
 			}
 		}
 		reader.update(threadName,ThreadStatus.DONE);
+		System.out.println(threadName + " Done");
 	}
 
 	public void retrieve(String database, String table, TSReader reader)

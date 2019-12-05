@@ -3,10 +3,11 @@ package com.thoughtspot.load_utility;
 import java.util.Hashtable;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class TSReader {
     private boolean isCompleted = false;
-    private ConcurrentLinkedQueue<String> records = new ConcurrentLinkedQueue<String>();
+    private LinkedBlockingQueue<String> records = new LinkedBlockingQueue<String>(500000);
     private static TSReader instance = null;
     private Hashtable<String, ThreadStatus> threadPool = new Hashtable<String, ThreadStatus>();
     private int threadCount = 1;
@@ -62,18 +63,27 @@ public class TSReader {
         }
     }
 
-    public boolean add(String record)
+    public void add(String record)
     {
-        synchronized (this) {
-            return records.add(record);
+        //synchronized (this) {
+        try {
+            records.put(record);
+        } catch (InterruptedException e) {
+            System.out.println(e.getMessage());
         }
+        //}
     }
 
     public String poll()
     {
-        synchronized (this) {
-            return records.poll();
+        //synchronized (this) {
+        try {
+            return records.take();
+        } catch (InterruptedException e) {
+            System.out.println(e.getMessage());
         }
+        //}
+        return null;
     }
 
     public int size() {
