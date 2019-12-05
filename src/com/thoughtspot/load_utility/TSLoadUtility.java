@@ -240,14 +240,7 @@ Channel channel=session.openChannel("shell");
 			String recsToLoad = recs.toString();
 			if (recsToLoad.length() > 0) {
 				System.out.println(threadName + " Amount to load " + recsToLoad.length());
-				Writer writer = null;
-				try {
-					writer = new BufferedWriter(new FileWriter("/Users/tbennett/thoughtspot/" + threadName + "_" + new Date().getTime() + ".csv"));
-					writer.write(recsToLoad);
-					writer.flush();
-					writer.close();
-				} catch (Exception e) {
-				}
+
 				try {
 					Channel channel = session.openChannel("exec");
 					ByteArrayOutputStream byteStream = new ByteArrayOutputStream(recsToLoad.length());
