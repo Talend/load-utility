@@ -7,25 +7,21 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 public class TSReader {
     private boolean isCompleted = false;
-    private static int _DEFAULT_COMMIMT = 250000;
+    private final int _DEFAULT_COMMIMT = 500000;
     private LinkedBlockingQueue<String> records = null;
     private static TSReader instance = null;
     private Hashtable<String, ThreadStatus> threadPool = new Hashtable<String, ThreadStatus>();
     private int threadCount = 1;
-    public static synchronized TSReader newInstance(int commit)
+    public static synchronized TSReader newInstance()
     {
-        if (instance == null) {
-            if (commit <= _DEFAULT_COMMIMT)
-                instance = new TSReader(_DEFAULT_COMMIMT);
-            else
-                instance = new TSReader(commit);
-        }
+        if (instance == null)
+                instance = new TSReader();
 
         return instance;
     }
 
-    private TSReader(int commit) {
-        records = new LinkedBlockingQueue<String>(commit);
+    private TSReader() {
+        records = new LinkedBlockingQueue<String>(_DEFAULT_COMMIMT);
     }
 
     public boolean done() {

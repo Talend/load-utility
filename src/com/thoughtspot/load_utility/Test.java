@@ -9,7 +9,7 @@ public class Test {
     public static void main(String[] args)
     {
         try {
-            TSReader reader = TSReader.newInstance(0);
+            TSReader reader = TSReader.newInstance();
             TSLoadUtility tsLoadUtility = TSLoadUtility.getInstance("ts.aws.com", 22, "admin",
                     "th0ughtSp0t");
             tsLoadUtility.connect();
