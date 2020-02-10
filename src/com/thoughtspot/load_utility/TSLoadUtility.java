@@ -27,7 +27,7 @@ public class TSLoadUtility {
 	{
 		//if (instance == null)
 			return new TSLoadUtility(host, port, username, password);
-		
+
 		//return instance;
 	}
 	
@@ -68,7 +68,7 @@ public class TSLoadUtility {
 		sb.append(table);
 		sb.append(" --field_separator ");
 		sb.append("'"+field_separator+"'");
-		sb.append(" --null_value '' --max_ignored_rows 10");
+		sb.append(" --null_value '' --date_format %Y-%m-%d --date_time_format \"%Y-%m-%d %H:%M:%S\" --max_ignored_rows 10");
 		this.command = sb.toString();
 	}
 	
@@ -122,6 +122,37 @@ Channel channel=session.openChannel("shell");
 		}
 	}
 
+	public void truncateTable(String database, String table) throws TSLoadUtilityException
+	{
+		StringBuilder command = new StringBuilder();
+		command.append("tql\nuse " + database+";\ntruncate table " + table +";\nexit;\nexit\n");
+		LOG.info("TSLU:: " + command.toString());
+		try {
+			Channel channel=session.openChannel("shell");
+
+			PipedOutputStream pos = new PipedOutputStream();
+			PipedInputStream pis = new PipedInputStream(pos,131072);
+			channel.setInputStream(pis);
+			pos.write(command.toString().getBytes());
+			pos.flush();
+			pos.close();
+			InputStream in=channel.getInputStream();
+			final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			channel.setOutputStream(baos);
+			channel.connect();
+
+			Thread.sleep(10000);
+			String output = new String(baos.toByteArray()).replaceAll("\r", "");
+			LOG.info("TSLU:: " + output);
+			if (!output.contains("Statement executed successfully."))
+				throw new TSLoadUtilityException(output);
+			channel.disconnect();
+		} catch(JSchException | IOException | InterruptedException e) {
+			LOG.error("TSLU:: " + e.getMessage());
+			throw new TSLoadUtilityException(e.getMessage());
+		}
+	}
+
 	public void createTable(LinkedHashMap<String, String> attributes, String table, String database) throws TSLoadUtilityException
 	{
 		StringBuilder command = new StringBuilder();
@@ -140,7 +171,7 @@ Channel channel=session.openChannel("shell");
 			Channel channel=session.openChannel("shell");
 
 			PipedOutputStream pos = new PipedOutputStream();
-			PipedInputStream pis = new PipedInputStream(pos);
+			PipedInputStream pis = new PipedInputStream(pos,131072);
 			channel.setInputStream(pis);
 			pos.write(command.toString().getBytes());
 			pos.flush();
