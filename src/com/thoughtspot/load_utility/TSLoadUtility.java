@@ -248,6 +248,7 @@ Channel channel=session.openChannel("shell");
 			System.out.println(threadName + " Outer Loop");
 			while (counter <= commit && reader.size() > 0)
 			{
+				System.out.println(threadName + " Inner Loop, Counter " + counter);
 				if (counter % 100 == 0)
 					System.out.println(threadName + " Inner Loop, Counter " + counter);
 				if (reader.size() == 0) {
