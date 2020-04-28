@@ -145,10 +145,10 @@ Channel channel=session.openChannel("shell");
 		}
 	}
 
-	public void truncateTable(String database, String table) throws TSLoadUtilityException
+	public void truncateTable(String database, String schema, String table) throws TSLoadUtilityException
 	{
 		StringBuilder command = new StringBuilder();
-		command.append("tql\nuse " + database+";\ntruncate table " + table +";\nexit;\nexit\n");
+		command.append("tql\nuse " + database+";\ntruncate table " + schema+"."+table +";\nexit;\nexit\n");
 		LOG.info("TSLU:: " + command.toString());
 		try {
 			Channel channel=session.openChannel("shell");
