@@ -60,15 +60,38 @@ public class TSLoadUtility {
 		}
 	}
 	
-	public void setTSLoadProperties(String database, String table, String field_separator) {
+	public void setTSLoadProperties(String database, String schema, String table, int maxIgnoreRows, 
+	String badRecordsFile, String date_format, String date_time_format, String time_format, int verbosity,
+	boolean skip_second_fraction, String field_separator, boolean date_converted_to_epoch, String boolean_representation) {
 		StringBuilder sb = new StringBuilder();
 		sb.append("gzip -dc | tsload --target_database ");
 		sb.append(database);
+		sb.append(" --target_schema ");
+		sb.append(schema);
 		sb.append(" --target_table ");
 		sb.append(table);
+		sb.append(" --max_ignored_rows ");
+		sb.append(maxIgnoreRows);
+		if (badRecordsFile.trim().length() > 0) {
+			sb.append(" --bad_records_file ");
+			sb.append(badRecordsFile);
+		}
+		sb.append(" --date_format ");
+		sb.append(date_format);
+		sb.append(" --date_time_format ");
+		sb.append("\""+date_time_format+"\"");
+		sb.append(" --time_format ");
+		sb.append(time_format);
+		sb.append(" --v=" + verbosity);
+		if (skip_second_fraction)
+			sb.append(" --skip_second_fraction ");
 		sb.append(" --field_separator ");
 		sb.append("'"+field_separator+"'");
-		sb.append(" --null_value '' --date_format %Y-%m-%d --date_time_format \"%Y-%m-%d %H:%M:%S\" --max_ignored_rows 10");
+		sb.append(" --date_converted_to_epoch ");
+		sb.append(date_converted_to_epoch);
+		sb.append(" --boolean_representation ");
+		sb.append(boolean_representation);
+		sb.append(" --null_value ''");
 		this.command = sb.toString();
 	}
 	
@@ -152,11 +175,72 @@ Channel channel=session.openChannel("shell");
 			throw new TSLoadUtilityException(e.getMessage());
 		}
 	}
-
-	public void createTable(LinkedHashMap<String, String> attributes, String table, String database) throws TSLoadUtilityException
+	public void createDatabase(String database) throws TSLoadUtilityException
 	{
 		StringBuilder command = new StringBuilder();
-		command.append("tql\nuse " + database+";\ncreate table " + table + "(");
+		command.append("tql\ncreate " + database+";\nexit;\nexit\n");
+		LOG.info("TSLU:: " + command.toString());
+		try {
+			Channel channel=session.openChannel("shell");
+
+			PipedOutputStream pos = new PipedOutputStream();
+			PipedInputStream pis = new PipedInputStream(pos,131072);
+			channel.setInputStream(pis);
+			pos.write(command.toString().getBytes());
+			pos.flush();
+			pos.close();
+			InputStream in=channel.getInputStream();
+			final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			channel.setOutputStream(baos);
+			channel.connect();
+
+			Thread.sleep(10000);
+			String output = new String(baos.toByteArray()).replaceAll("\r", "");
+			LOG.info("TSLU:: " + output);
+			if (!output.contains("Statement executed successfully."))
+				throw new TSLoadUtilityException(output);
+			channel.disconnect();
+		} catch(JSchException | IOException | InterruptedException e) {
+			LOG.error("TSLU:: " + e.getMessage());
+			throw new TSLoadUtilityException(e.getMessage());
+		}
+	}
+
+	public void createSchema(String database, String schema) throws TSLoadUtilityException
+	{
+		StringBuilder command = new StringBuilder();
+		command.append("tql\nuse " + database+";\ncreate schema "+schema+";\nexit;\nexit\n");
+		LOG.info("TSLU:: " + command.toString());
+		try {
+			Channel channel=session.openChannel("shell");
+
+			PipedOutputStream pos = new PipedOutputStream();
+			PipedInputStream pis = new PipedInputStream(pos,131072);
+			channel.setInputStream(pis);
+			pos.write(command.toString().getBytes());
+			pos.flush();
+			pos.close();
+			InputStream in=channel.getInputStream();
+			final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			channel.setOutputStream(baos);
+			channel.connect();
+
+			Thread.sleep(10000);
+			String output = new String(baos.toByteArray()).replaceAll("\r", "");
+			LOG.info("TSLU:: " + output);
+			if (!output.contains("Statement executed successfully."))
+				throw new TSLoadUtilityException(output);
+			channel.disconnect();
+		} catch(JSchException | IOException | InterruptedException e) {
+			LOG.error("TSLU:: " + e.getMessage());
+			throw new TSLoadUtilityException(e.getMessage());
+		}
+	}
+
+	public void createTable(LinkedHashMap<String, String> attributes, String schema, String table, String database) throws TSLoadUtilityException
+	{
+		StringBuilder command = new StringBuilder();
+		command.append("tql\nuse " + database+";\ncreate table " + schema + "." + table + "(");
 		int idx = 0;
 		for (String key : attributes.keySet())
 		{
@@ -192,8 +276,96 @@ Channel channel=session.openChannel("shell");
 			throw new TSLoadUtilityException(e.getMessage());
 		}
 	}
+	
+	public ArrayList<String> getSchemas(String database) throws TSLoadUtilityException {
+		ArrayList<String> tables = new ArrayList<String>();
+		try {
+			Channel channel=session.openChannel("shell");
+			
+			PipedOutputStream pos = new PipedOutputStream();
+	        PipedInputStream pis = new PipedInputStream(pos);
+	        channel.setInputStream(pis);
+	        pos.write(("tql\nuse "+database+";\nshow schemas;\nexit;\nexit\n").getBytes());
+	        pos.flush();
+	        pos.close();
+	        InputStream in=channel.getInputStream();
+	        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+	        channel.setOutputStream(baos);
+	        channel.connect();
+	        
+	        Thread.sleep(10000);
+	        String[] output = new String(baos.toByteArray()).replaceAll("\r", "").split("\n");
+	        boolean flag = false;
+	        
+	        for (String line : output)
+	        {
+	        	if (flag && line.startsWith("Statement"))
+	        	{
+	        		flag = false;
+	        	}
+	        	if (flag)
+	        	{
+	        		String[] segments = line.split("\\|");
+	        		tables.add(segments[0].trim());
+	        	}
+	        	if (line.startsWith("----"))
+	        	{
+	        		flag = true;
+	        	}
+	        	
+	        }
 
-	public ArrayList<String> getTables(String database) throws TSLoadUtilityException {
+	        channel.disconnect();
+	        return tables;
+		} catch(JSchException | IOException | InterruptedException e)
+		{
+			throw new TSLoadUtilityException(e.getMessage());
+		}
+	}
+
+	public ArrayList<String> getDatabases() throws TSLoadUtilityException {
+		ArrayList<String> tables = new ArrayList<String>();
+		try {
+			Channel channel=session.openChannel("shell");
+			
+			PipedOutputStream pos = new PipedOutputStream();
+	        PipedInputStream pis = new PipedInputStream(pos);
+	        channel.setInputStream(pis);
+	        pos.write(("tql\nshow databases;\nexit;\nexit\n").getBytes());
+	        pos.flush();
+	        pos.close();
+	        InputStream in=channel.getInputStream();
+	        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+	        channel.setOutputStream(baos);
+	        channel.connect();
+	        
+	        Thread.sleep(10000);
+	        String[] output = new String(baos.toByteArray()).replaceAll("\r", "").split("\n");
+	        boolean flag = true;
+	        
+	        for (String line : output)
+	        {
+	        	if (flag && line.startsWith("Statement"))
+	        	{
+	        		flag = false;
+	        	}
+	        	if (flag)
+	        	{
+	        		
+	        		tables.add(line.trim());
+	        	}
+	        	
+	        }
+
+	        channel.disconnect();
+	        return tables;
+		} catch(JSchException | IOException | InterruptedException e)
+		{
+			throw new TSLoadUtilityException(e.getMessage());
+		}
+	}
+
+	public ArrayList<String> getTables(String database, String schema) throws TSLoadUtilityException {
 		ArrayList<String> tables = new ArrayList<String>();
 		try {
 			Channel channel=session.openChannel("shell");
@@ -221,8 +393,9 @@ Channel channel=session.openChannel("shell");
 	        	}
 	        	if (flag)
 	        	{
-	        		String[] segments = line.split("\\|");
-	        		tables.add(segments[0].trim()+"."+segments[1].trim());
+					String[] segments = line.split("\\|");
+					if (segments[0].equals(schema))
+	        			tables.add(segments[1].trim());
 	        	}
 	        	if (line.startsWith("----"))
 	        	{
