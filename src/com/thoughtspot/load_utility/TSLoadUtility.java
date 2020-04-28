@@ -178,7 +178,7 @@ Channel channel=session.openChannel("shell");
 	public void createDatabase(String database) throws TSLoadUtilityException
 	{
 		StringBuilder command = new StringBuilder();
-		command.append("tql\ncreate " + database+";\nexit;\nexit\n");
+		command.append("tql\ncreate database " + database+";\nexit;\nexit\n");
 		LOG.info("TSLU:: " + command.toString());
 		try {
 			Channel channel=session.openChannel("shell");
@@ -341,7 +341,7 @@ Channel channel=session.openChannel("shell");
 	        
 	        Thread.sleep(10000);
 	        String[] output = new String(baos.toByteArray()).replaceAll("\r", "").split("\n");
-	        boolean flag = true;
+	        boolean flag = false;
 	        
 	        for (String line : output)
 	        {
@@ -353,6 +353,10 @@ Channel channel=session.openChannel("shell");
 	        	{
 	        		
 	        		tables.add(line.trim());
+				}
+				if (line.startsWith("TQL [database=(none)]> show databases;"))
+	        	{
+	        		flag = true;
 	        	}
 	        	
 	        }
