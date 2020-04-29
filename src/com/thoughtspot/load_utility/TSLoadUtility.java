@@ -354,7 +354,7 @@ Channel channel=session.openChannel("shell");
 	        		
 	        		tables.add(line.trim());
 				}
-				if (line.startsWith("TQL [database=(none)]> show databases;"))
+				if (line.trim().startsWith("TQL [database=(none)]> show databases;"))
 	        	{
 	        		flag = true;
 	        	}
@@ -398,7 +398,7 @@ Channel channel=session.openChannel("shell");
 	        	if (flag)
 	        	{
 					String[] segments = line.split("\\|");
-					if (segments[0].equals(schema))
+					if (segments[0].trim().equals(schema))
 	        			tables.add(segments[1].trim());
 	        	}
 	        	if (line.startsWith("----"))
